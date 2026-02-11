@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Letterboxd Ratings Shield
 // @namespace    https://letterboxd.com/emreca/
-// @version      1.0
+// @version      1.2
 // @description  Hide ratings if a movie is not yet watched on Letterboxd
 // @author       MostlyEmre
 // @license      MIT
@@ -38,6 +38,8 @@
   "use strict";
 
   let isHidden = true; // Default state is hidden
+  let isUnwatched = true; // Track if movie is unwatched (button should show)
+  let userToggled = false; // Track if user manually toggled visibility
 
   // Initially hide the ratings section with CSS
   const style = document.createElement("style");
@@ -45,13 +47,62 @@
         .ratings-histogram-chart {
             display: none;
         }
+        #lrs-show-rating-btn {
+            display: none;
+            background-color: #009d1a;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        #lrs-show-rating-btn:hover {
+            background-color: #00ac1c;
+        }
     `;
   document.head.appendChild(style);
 
+  function createShowRatingButton() {
+    if (document.getElementById("lrs-show-rating-btn")) return;
+
+    const ratingsSection = document.querySelector(".ratings-histogram-chart");
+    if (!ratingsSection) return;
+
+    const button = document.createElement("button");
+    button.id = "lrs-show-rating-btn";
+    button.textContent = "🚨 Show Rating";
+    button.addEventListener("click", () => {
+      userToggled = true;
+      isHidden = !isHidden;
+      updateRatingsVisibility();
+    });
+
+    ratingsSection.parentElement.insertBefore(button, ratingsSection);
+  }
+
   function updateRatingsVisibility() {
     const ratingsSection = document.querySelector(".ratings-histogram-chart");
-    if (ratingsSection) {
-      ratingsSection.style.display = isHidden ? "none" : "block";
+    const button = document.getElementById("lrs-show-rating-btn");
+
+    const newRatingsDisplay = isHidden ? "none" : "block";
+
+    if (ratingsSection && ratingsSection.style.display !== newRatingsDisplay) {
+      ratingsSection.style.display = newRatingsDisplay;
+    }
+
+    if (button) {
+      const newButtonDisplay = isUnwatched ? "block" : "none";
+      const newButtonText = isHidden ? "Show Rating" : "Hide Rating";
+
+      if (button.style.display !== newButtonDisplay) {
+        button.style.display = newButtonDisplay;
+      }
+      if (button.textContent !== newButtonText) {
+        button.textContent = newButtonText;
+      }
     }
   }
 
@@ -62,12 +113,17 @@
 
       if (actionsArray[0] === "watched" || actionsArray[0] === "reviewed") {
         isHidden = false; // Set state to show ratings
+        isUnwatched = false; // Movie is watched, no toggle button needed
       } else if (actionsArray[0] === "watch") {
-        isHidden = true; // Set state to hide ratings
+        if (!userToggled) {
+          isHidden = true; // Only set default if user hasn't toggled
+        }
+        isUnwatched = true; // Movie is unwatched, show toggle button
       } else {
         return; // Do nothing if "remove" or other text is detected
       }
 
+      createShowRatingButton();
       updateRatingsVisibility();
     }
   }
